@@ -1,14 +1,14 @@
 {
   "domain": "fellow_stagg_pro",
   "name": "Fellow Stagg Pro",
-  "version": "0.1.0",
-  "documentation": "https://github.com/itpropro/stagg-pro-ha#readme",
-  "issue_tracker": "https://github.com/itpropro/stagg-pro-ha/issues",
   "codeowners": [
     "@itpropro"
   ],
+  "config_flow": true,
+  "documentation": "https://github.com/itpropro/stagg-pro-ha#readme",
   "integration_type": "device",
   "iot_class": "local_polling",
-  "config_flow": true,
-  "requirements": []
+  "issue_tracker": "https://github.com/itpropro/stagg-pro-ha/issues",
+  "requirements": [],
+  "version": "0.1.0"
 }
