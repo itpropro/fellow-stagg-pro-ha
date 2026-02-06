@@ -31,9 +31,9 @@ class TestGuardrails(unittest.TestCase):
 
     def test_is_control_enabled_prefers_options(self) -> None:
         enabled = guardrails.is_control_enabled(
-            key="enable_heat_control",
-            data={"enable_heat_control": False},
-            options={"enable_heat_control": True},
+            key="enable_set_temperature",
+            data={"enable_set_temperature": False},
+            options={"enable_set_temperature": True},
             default=False,
         )
         self.assertTrue(enabled)

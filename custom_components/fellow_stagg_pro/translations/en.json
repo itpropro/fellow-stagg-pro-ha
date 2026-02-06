@@ -8,8 +8,8 @@
           "host": "Host",
           "port": "Port",
           "scan_interval": "Update interval (seconds)",
-          "enable_heat_control": "Enable heat on/off controls (risky)",
-          "enable_set_temperature": "Enable target temperature writes (risky)"
+          "enable_heat_control": "Enable on/off controls",
+          "enable_set_temperature": "Enable target temperature writes"
         }
       }
     },
@@ -25,8 +25,8 @@
       "init": {
         "data": {
           "scan_interval": "Update interval (seconds)",
-          "enable_heat_control": "Enable heat on/off controls (risky)",
-          "enable_set_temperature": "Enable target temperature writes (risky)"
+          "enable_heat_control": "Enable on/off controls",
+          "enable_set_temperature": "Enable target temperature writes"
         }
       }
     }

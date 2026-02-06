@@ -11,7 +11,7 @@ This integration relies on an undocumented local API. It can stop working at any
 - Local polling integration (`iot_class: local_polling`)
 - `water_heater` entity for kettle control
 - Diagnostic `sensor` entities for mode, firmware, and runtime values
-- Safety guardrails with risky controls disabled by default
+- Safety guardrails for on/off and target writes
 - Compatible with Home Assistant `2026.1.3` (minimum declared for HACS: `2026.1.0`)
 
 ## Known Limitations
@@ -52,14 +52,14 @@ During setup, provide:
 - Kettle host/IP
 - Kettle port (default `80`)
 - Poll interval (`scan_interval`)
-- Optional risky controls:
+- Optional controls:
   - `enable_heat_control`
   - `enable_set_temperature`
 
 ## Guardrails and Safety
 
-- Risky write controls are disabled by default.
-- `enable_heat_control` gates `turn_on` / `turn_off` writes.
+- On/off controls are enabled by default (`enable_heat_control`).
+- Target temperature writes are disabled by default (`enable_set_temperature`).
 - `enable_set_temperature` gates target temperature writes.
 - Temperature writes are validated to `40.0-100.0 C` and normalized to `0.5 C`.
 - This controls a real heating appliance; validate all control behavior supervised.

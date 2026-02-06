@@ -31,6 +31,15 @@ from .const import (
     NAME,
     TARGET_TEMP_STEP_C,
 )
+from .control import (
+    OPERATION_HEATING,
+    OPERATION_HOLDING,
+    OPERATION_OFF,
+    derive_operation_mode,
+    derive_power_state,
+    is_target_match,
+    resolve_target_temperature_c,
+)
 from .coordinator import FellowStaggProDataUpdateCoordinator
 from .guardrails import is_control_enabled, normalize_target_temperature_c
 from .temperature import celsius_to_fahrenheit, fahrenheit_to_celsius
@@ -65,6 +74,8 @@ class FellowStaggProWaterHeater(
         """Initialize entity."""
         super().__init__(coordinator)
         self._entry = entry
+        self._optimistic_target_c: float | None = None
+        self._optimistic_refreshes_remaining = 0
         self._attr_unique_id = f"{entry.unique_id or entry.entry_id}-water-heater"
 
     @property
@@ -98,9 +109,11 @@ class FellowStaggProWaterHeater(
     @property
     def target_temperature(self) -> float | None:
         """Return target temperature."""
-        target_c = self._state().get("target_temp_c")
-        if target_c is None:
-            target_c = self._settings().get("settempr_c")
+        target_c = resolve_target_temperature_c(
+            optimistic_target_c=self._optimistic_target_c,
+            settings=self._settings(),
+            state=self._state(),
+        )
         if target_c is None:
             return None
         return self._from_celsius(target_c)
@@ -108,15 +121,17 @@ class FellowStaggProWaterHeater(
     @property
     def is_on(self) -> bool | None:
         """Return whether kettle appears to be active."""
-        mode = str(self._state().get("mode") or "").lower()
-        if mode:
-            return "off" not in mode
+        return derive_power_state(self._state())
 
-        heat_flag = self._state().get("flags", {}).get("ho")
-        if isinstance(heat_flag, int):
-            return bool(heat_flag)
+    @property
+    def current_operation(self) -> str | None:
+        """Return mapped operation mode for Home Assistant UI state."""
+        return derive_operation_mode(self._state())
 
-        return None
+    @property
+    def operation_list(self) -> list[str]:
+        """Return supported operation modes for state mapping."""
+        return [OPERATION_OFF, OPERATION_HEATING, OPERATION_HOLDING]
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -133,6 +148,7 @@ class FellowStaggProWaterHeater(
                 "heat_control": self._heat_control_enabled(),
                 "set_temperature": self._set_temperature_enabled(),
             },
+            "target_write_pending": self._optimistic_target_c is not None,
         }
 
     @property
@@ -149,7 +165,7 @@ class FellowStaggProWaterHeater(
         """Turn the kettle heating on."""
         if not self._heat_control_enabled():
             raise HomeAssistantError(
-                "Heat control is disabled by guardrails. Enable it in integration options."
+                "Heat control is disabled. Enable it in integration options."
             )
 
         await self.coordinator.api.async_turn_on()
@@ -159,7 +175,7 @@ class FellowStaggProWaterHeater(
         """Turn the kettle heating off."""
         if not self._heat_control_enabled():
             raise HomeAssistantError(
-                "Heat control is disabled by guardrails. Enable it in integration options."
+                "Heat control is disabled. Enable it in integration options."
             )
 
         await self.coordinator.api.async_turn_off()
@@ -183,8 +199,28 @@ class FellowStaggProWaterHeater(
             max_c=self._attr_max_temp,
             step_c=self._attr_target_temperature_step,
         )
+        self._optimistic_target_c = target_c
+        self._optimistic_refreshes_remaining = 6
+        self.async_write_ha_state()
         await self.coordinator.api.async_set_target_temperature(target_c)
         await self.coordinator.async_request_refresh()
+
+    def _handle_coordinator_update(self) -> None:
+        """Handle refreshed coordinator data."""
+        if self._optimistic_target_c is not None:
+            settings_target_c = self._settings().get("settempr_c")
+            if isinstance(settings_target_c, (float, int)) and is_target_match(
+                self._optimistic_target_c, settings_target_c
+            ):
+                self._optimistic_target_c = None
+                self._optimistic_refreshes_remaining = 0
+            else:
+                self._optimistic_refreshes_remaining = max(
+                    0, self._optimistic_refreshes_remaining - 1
+                )
+                if self._optimistic_refreshes_remaining == 0:
+                    self._optimistic_target_c = None
+        super()._handle_coordinator_update()
 
     def _state(self) -> dict[str, Any]:
         return self.coordinator.data.get(COORDINATOR_DATA_STATE, {})
@@ -213,18 +249,18 @@ class FellowStaggProWaterHeater(
             return float(fahrenheit_to_celsius(value))
         return value
 
-    def _heat_control_enabled(self) -> bool:
-        return is_control_enabled(
-            key=CONF_ENABLE_HEAT_CONTROL,
-            data=self._entry.data,
-            options=self._entry.options,
-            default=DEFAULT_ENABLE_HEAT_CONTROL,
-        )
-
     def _set_temperature_enabled(self) -> bool:
         return is_control_enabled(
             key=CONF_ENABLE_SET_TEMPERATURE,
             data=self._entry.data,
             options=self._entry.options,
             default=DEFAULT_ENABLE_SET_TEMPERATURE,
+        )
+
+    def _heat_control_enabled(self) -> bool:
+        return is_control_enabled(
+            key=CONF_ENABLE_HEAT_CONTROL,
+            data=self._entry.data,
+            options=self._entry.options,
+            default=DEFAULT_ENABLE_HEAT_CONTROL,
         )
