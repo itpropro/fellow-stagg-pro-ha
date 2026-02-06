@@ -38,6 +38,7 @@ class FellowStaggProApi:
         self._host = host
         self._port = port
         self._request_timeout = request_timeout
+        self._settempr_scale_hint: str | None = None
 
     @property
     def host(self) -> str:
@@ -76,7 +77,11 @@ class FellowStaggProApi:
     async def async_get_settings(self) -> dict[str, Any]:
         """Fetch and parse settings dump."""
         payload = await self.async_send_command("prtsettings")
-        return parse_settings_payload(payload)
+        settings = parse_settings_payload(payload)
+        scale = str(settings.get("settempr_scale") or "").lower()
+        if scale in {"f", "2c"}:
+            self._settempr_scale_hint = scale
+        return settings
 
     async def async_get_fwinfo(self) -> dict[str, Any]:
         """Fetch and parse firmware info."""
@@ -104,41 +109,58 @@ class FellowStaggProApi:
             settings = await self.async_get_settings()
         except FellowStaggProApiError:
             settings = {}
-
-        raw_settempr = _encode_settempr_value(normalized_temp, settings)
-        command = f"setsetting settempr {raw_settempr}"
-        await self.async_send_command(command)
-
+        candidate_scales = _settempr_candidate_scales(settings, self._settempr_scale_hint)
+        seen_raw: set[int] = set()
         last_settings_target: float | int | None = None
-        for attempt in range(3):
-            try:
-                settings = await self.async_get_settings()
-            except FellowStaggProApiError:
-                settings = {}
+        last_state_target: float | int | None = None
 
-            settings_target = settings.get("settempr_c")
-            if isinstance(settings_target, (float, int)):
-                last_settings_target = settings_target
+        for scale in candidate_scales:
+            raw_settempr = _encode_settempr_value(normalized_temp, scale)
+            if raw_settempr in seen_raw:
+                continue
+            seen_raw.add(raw_settempr)
 
-            if isinstance(settings_target, (float, int)) and is_target_match(
-                normalized_temp, settings_target
-            ):
-                return
+            command = f"setsetting settempr {raw_settempr}"
+            await self.async_send_command(command)
 
-            if attempt == 0:
-                await self.async_send_command(command)
+            for attempt in range(4):
+                try:
+                    settings = await self.async_get_settings()
+                except FellowStaggProApiError:
+                    settings = {}
 
-            if attempt < 2:
-                await asyncio.sleep(0.2)
+                try:
+                    state = await self.async_get_state()
+                except FellowStaggProApiError:
+                    state = {}
 
-        if last_settings_target is None:
-            raise FellowStaggProApiError(
-                "Target temperature write could not be verified from settings"
-            )
+                settings_target = settings.get("settempr_c")
+                state_target = state.get("target_temp_c")
+
+                if isinstance(settings_target, (float, int)):
+                    last_settings_target = settings_target
+                if isinstance(state_target, (float, int)):
+                    last_state_target = state_target
+
+                if _is_target_verified(
+                    normalized_temp,
+                    settings_target,
+                    state_target,
+                ):
+                    self._settempr_scale_hint = scale
+                    return
+
+                if attempt == 1:
+                    await self.async_send_command(command)
+
+                if attempt < 3:
+                    await asyncio.sleep(0.25)
 
         raise FellowStaggProApiError(
             "Target temperature write mismatch: "
-            f"requested={normalized_temp:.1f}C observed={float(last_settings_target):.1f}C"
+            f"requested={normalized_temp:.1f}C "
+            f"settings={_format_optional_temp(last_settings_target)} "
+            f"state={_format_optional_temp(last_state_target)}"
         )
 
     async def _async_set_power(self, expected_on: bool) -> None:
@@ -164,11 +186,42 @@ class FellowStaggProApi:
                 await asyncio.sleep(0.5)
 
 
-def _encode_settempr_value(target_c: float, settings: dict[str, Any]) -> int:
-    """Encode target temperature for `setsetting settempr` based on device format."""
-    scale = str(settings.get("settempr_scale") or "").lower()
-
+def _encode_settempr_value(target_c: float, scale: str) -> int:
+    """Encode target temperature for `setsetting settempr` based on scale."""
     if scale == "f":
         return int(round(celsius_to_fahrenheit(target_c)))
 
     return int(round(target_c * 2))
+
+
+def _settempr_candidate_scales(settings: dict[str, Any], hint: str | None) -> list[str]:
+    """Return ordered candidate settempr scales to try."""
+    settings_scale = str(settings.get("settempr_scale") or "").lower()
+    ordered = [settings_scale, str(hint or "").lower(), "f", "2c"]
+    candidates: list[str] = []
+    for scale in ordered:
+        if scale not in {"f", "2c"}:
+            continue
+        if scale in candidates:
+            continue
+        candidates.append(scale)
+    return candidates or ["f", "2c"]
+
+
+def _is_target_verified(
+    requested_target_c: float,
+    settings_target_c: float | int | None,
+    state_target_c: float | int | None,
+) -> bool:
+    """Return whether write is confirmed by settings/state readback."""
+    return any(
+        isinstance(candidate, (float, int)) and is_target_match(requested_target_c, candidate)
+        for candidate in (settings_target_c, state_target_c)
+    )
+
+
+def _format_optional_temp(value: float | int | None) -> str:
+    """Format optional temperature for error details."""
+    if not isinstance(value, (float, int)):
+        return "unknown"
+    return f"{float(value):.1f}C"

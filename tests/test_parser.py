@@ -98,6 +98,21 @@ class TestParser(unittest.TestCase):
         self.assertEqual(parsed["settempr_scale"], "f")
         self.assertAlmostEqual(parsed["settempr_c"], 80.0)
 
+    def test_parse_settings_payload_with_log_prefix(self) -> None:
+        payload = "\n".join(
+            [
+                "st: settempr=160 F (71.111115 C 160.000000 F)",
+                "st: units=1",
+                "st: hold=15",
+            ]
+        )
+        parsed = parser.parse_settings_payload(payload)
+        self.assertEqual(parsed["settempr_raw"], 160)
+        self.assertEqual(parsed["settempr_scale"], "f")
+        self.assertAlmostEqual(parsed["settempr_c"], 71.111115)
+        self.assertEqual(parsed["units_int"], 1)
+        self.assertEqual(parsed["hold"], "15")
+
     def test_parse_fwinfo_payload(self) -> None:
         parsed = parser.parse_fwinfo_payload(FWINFO_PAYLOAD)
         self.assertEqual(parsed["version"], "1.1.75SSP cli")

@@ -43,6 +43,7 @@ def parse_settings_payload(payload: str) -> dict[str, Any]:
 
     for raw_line in payload.splitlines():
         line = raw_line.strip().strip("'")
+        line = _strip_log_prefix(line)
         if "=" not in line:
             continue
         key, value = line.split("=", 1)
@@ -129,3 +130,19 @@ def parse_state_flags(value: str | None) -> dict[str, int]:
             continue
         flags[flag] = flag_value
     return flags
+
+
+def _strip_log_prefix(line: str) -> str:
+    """Strip firmware log prefix like `st: key=value` when present."""
+    colon_index = line.find(":")
+    equal_index = line.find("=")
+    if colon_index == -1 or equal_index == -1:
+        return line
+    if colon_index > equal_index:
+        return line
+
+    prefix = line[:colon_index].strip()
+    if not prefix.isalpha():
+        return line
+
+    return line[colon_index + 1 :].strip()
