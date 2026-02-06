@@ -1,19 +1,88 @@
 # Fellow Stagg Pro Home Assistant Integration
 
-Custom Home Assistant integration (HACS) for local control of a Fellow Stagg EKG Pro/Pro Studio kettle that exposes the local `/cli?cmd=...` endpoint.
+A Home Assistant custom integration for Fellow Stagg EKG Pro kettles using the local HTTP CLI endpoint (`/cli?cmd=...`).
 
-Suggested GitHub repository description:
+## Disclaimer
 
-`Local Home Assistant integration for Fellow Stagg EKG Pro kettles via the local CLI API, with safety-guarded controls.`
+This integration relies on an undocumented local API. It can stop working at any time due to firmware or device-side changes. Using it is entirely at your own risk.
 
-## Status
+## Features
 
-- Domain: `fellow_stagg_pro`
-- Type: custom integration (`custom_components/fellow_stagg_pro`)
-- Scope (v1 scaffold): `water_heater` + diagnostic `sensor` entities
-- Transport: local HTTP polling (`iot_class: local_polling`)
+- Local polling integration (`iot_class: local_polling`)
+- `water_heater` entity for kettle control
+- Diagnostic `sensor` entities for mode, firmware, and runtime values
+- Safety guardrails with risky controls disabled by default
 
-## Reverse Engineering Reference (from live kettle)
+## Known Limitations
+
+- Command semantics are reverse-engineered and may change with firmware updates
+- Some endpoints are incomplete/unclear (`read_adc` currently returns no usable value)
+- `temp` statistics are zero unless the kettle-side stats period is enabled
+
+## Installation
+
+### Option 1: HACS (Recommended)
+
+#### Via My Home Assistant Link
+
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=itpropro&repository=fellow-stagg-pro-ha)
+
+#### Via HACS UI
+
+1. Make sure [HACS](https://hacs.xyz) is installed.
+2. In HACS, open the menu in the top-right and select **Custom repositories**.
+3. Add `https://github.com/itpropro/fellow-stagg-pro-ha` as category **Integration**.
+4. Install **Fellow Stagg Pro**.
+5. Restart Home Assistant.
+6. Go to **Settings -> Devices & Services -> Add Integration**.
+7. Search for **Fellow Stagg Pro** and complete setup.
+
+### Option 2: Manual Installation
+
+1. Copy `custom_components/fellow_stagg_pro` to your Home Assistant config `custom_components/` folder.
+2. Restart Home Assistant.
+3. Go to **Settings -> Devices & Services -> Add Integration**.
+4. Search for **Fellow Stagg Pro** and complete setup.
+
+## Configuration
+
+During setup, provide:
+
+- Kettle host/IP
+- Kettle port (default `80`)
+- Poll interval (`scan_interval`)
+- Optional risky controls:
+  - `enable_heat_control`
+  - `enable_set_temperature`
+
+## Guardrails and Safety
+
+- Risky write controls are disabled by default.
+- `enable_heat_control` gates `turn_on` / `turn_off` writes.
+- `enable_set_temperature` gates target temperature writes.
+- Temperature writes are validated to `40.0-100.0 C` and normalized to `0.5 C`.
+- This controls a real heating appliance; validate all control behavior supervised.
+
+## Entities
+
+### Water Heater
+
+| Entity | Description |
+|--------|-------------|
+| Kettle | Main control entity for on/off and target temperature (when enabled) |
+
+### Sensors
+
+| Sensor | Description |
+|--------|-------------|
+| Current Temperature | Current measured kettle temperature |
+| Target Temperature | Current target temperature |
+| Mode | Parsed kettle mode string |
+| Clock | Kettle clock value |
+| Firmware Version | Parsed value from `fwinfo` |
+| BLE Connected | BLE connection flag from state |
+
+## Reverse Engineering Reference
 
 Endpoint format:
 
@@ -21,75 +90,22 @@ Endpoint format:
 http://<kettle-ip>/cli?cmd=<command>
 ```
 
-### Confirmed telemetry payloads
+Confirmed telemetry endpoints:
 
-- `state` (`ret 0`): primary runtime state
-  - Observed keys: `mode`, `tempr`, `temprT`, `temprB`, `units`, `clock`, `scrname`, `ble conn`, `ketl` flags
-  - Example observed values: `mode=S_Off`, `tempr=75.254237 C`, `temprT=98.000000 C`, `temprB=100.000000 C`, `units=1`
-- `prtsettings` (`ret 0`): persistent settings
-  - Observed keys include: `settempr`, `hold`, `units`, `boil`, `schedon`, `wifimode`, `bledis`, `blesec`, `offset_temp`
-  - Example: `settempr=196 2C (98.000000 C 208.399994 F)`
+- `state` (`ret 0`): runtime state (`mode`, `tempr`, `temprT`, `temprB`, `units`, `clock`, `ble conn`, `ketl` flags)
+- `prtsettings` (`ret 0`): persistent settings (`settempr`, `hold`, `units`, schedule and connectivity fields)
 - `fwinfo` (`ret 0`): firmware and partition metadata
-  - Observed: current version `1.1.75SSP`, boot/running partition `ota_0`
-- `temp` (`ret 0`): statistics endpoint, but zero values unless `tstprd` is configured
-- `read_adc` (`ret 0`): no explicit ADC value observed in current output
+- `temp` (`ret 0`): stats endpoint (zero until stats period is enabled)
+- `read_adc` (`ret 0`): currently no explicit usable value observed
 
-### Command inventory (from `help`)
+Safety classification:
 
-- System/state: `help`, `reset`, `state`, `statesave`, `prtsaved`, `setstate`, `ss`, `shot`, `refresh`, `sleepms`
-- Settings/clock/units: `setsetting`, `setsettingd`, `setsettings`, `setsettingb`, `clrsettings`, `prtsettings`, `prts`, `prtclock`, `setclock`, `incclock`, `incticks`, `setanalog`, `setdigital`, `setaltitudem`, `setaltitudef`, `setunitsc`, `setunitsf`
-- Firmware/debug: `fwinfo`, `setpart`, `eraseotherpart`, `heapprt`, `lvglinfo`, `lvglpon`, `lvglpoff`, `logprt`
-- GPIO/heating/PWM/temp: `gpioset`, `heaton`, `heatoff`, `warmon`, `warmoff`, `warmduty`, `rmtflt`, `pwmprt`, `temp`, `tstprd`, `buz`, `read_adc`, `temp_offset`, `adcsamples`, `set_period`, `max_duty`, `min_duty`
-- Wi-Fi/BLE/network: `wifiprt`, `wifierase`, `wifisappw`, `wifistapw`, `wifistassid`, `wifioff`, `wifion`, `wifisap`, `wifista`, `provreset`, `mdns`, `blesec`, `bleen`, `bledis`, `iot`, `httpdwn`, `httpfw`, `httptest`
-- UI input simulation: `1`, `1d`, `1u`, `2`, `2d`, `2u`, `q`, `left`, `w`, `right`, `bc`
+- Likely read-only: `state`, `prtsettings`, `prtclock`, `fwinfo`, `temp`, `wifiprt`, `logprt`, `heapprt`, `lvglinfo`, `shot`
+- High-risk writes: all `set*`, `reset`, provisioning/network toggles, OTA commands, GPIO/heat/PWM commands, UI input simulation
+- Thermal-critical: `heaton`, `heatoff`, `warmon`, `warmoff`, `warmduty`, `setstate`, simulated dial/button input
 
-### Safety classification
+## Publishing Notes
 
-- Likely read-only / low risk: `state`, `prtsaved`, `prtsettings`, `prtclock`, `fwinfo`, `heapprt`, `lvglinfo`, `logprt`, `pwmprt`, `temp`, `wifiprt`, `httptest`, `bc`, `read_adc`, `temp_offset`, `adcsamples`, `shot`
-- State-changing / high risk: all `set*`, `reset`, `clrsettings`, Wi-Fi/BLE provisioning toggles, OTA commands, GPIO/heat/PWM controls, simulated button/dial inputs
-- Thermal-critical: `heaton`, `heatoff`, `warmon`, `warmoff`, `warmduty`, `setstate`, UI input simulation (`1/2/q/w/...`), PWM period/duty commands
-
-## Safety Notice
-
-This controls a real heating appliance. Any write command can change behavior, activate heat, or alter settings. Validate all control mappings on a supervised kettle before unattended use.
-
-## Disclaimer
-
-This integration relies on an undocumented local API. It may stop working at any time due to firmware or device-side changes. Using this integration is entirely at your own risk.
-
-## Guardrails
-
-- Risky controls are disabled by default.
-- Two explicit feature flags gate writes:
-  - `enable_heat_control` controls `turn_on` / `turn_off` behavior.
-  - `enable_set_temperature` controls target-temperature writes.
-- When disabled, the water heater entity hides the related feature support and raises a clear error if write calls are attempted.
-- Temperature writes are validated to `40.0-100.0 C` and normalized to `0.5 C` steps.
-
-## Installation (HACS)
-
-1. Add this repository as a custom repository in HACS (`Integration` category).
-2. Install **Fellow Stagg Pro**.
-3. Restart Home Assistant.
-4. Add integration from **Settings -> Devices & Services**.
-
-## Installation (Manual)
-
-1. Copy `custom_components/fellow_stagg_pro` into your Home Assistant config directory under `custom_components/`.
-2. Restart Home Assistant.
-3. Add integration from **Settings -> Devices & Services**.
-
-## Publishing Readiness
-
-- Root `hacs.json` included
-- Integration in `custom_components/fellow_stagg_pro/`
-- Required `manifest.json` keys included: `domain`, `name`, `version`, `documentation`, `issue_tracker`, `codeowners`
-- CI workflows included:
-  - HACS validation (`hacs/action`)
-  - Home Assistant validation (`hassfest`)
-
-Recommended before public listing:
-
-- Add repository description + topics on GitHub
-- Create GitHub releases/tags for clean versioning
-- Add integration brand assets to `home-assistant/brands`
+- Domain: `fellow_stagg_pro`
+- Integration path: `custom_components/fellow_stagg_pro`
+- CI included: HACS validation + Hassfest
