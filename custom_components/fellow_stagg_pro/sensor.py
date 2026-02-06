@@ -7,12 +7,12 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.const import UnitOfTemperature
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.util.temperature import celsius_to_fahrenheit
 
-from . import FellowStaggProConfigEntry
+from . import FellowStaggProConfigEntry, get_runtime_data
 from .const import (
     COORDINATOR_DATA_FWINFO,
     COORDINATOR_DATA_SETTINGS,
@@ -21,15 +21,16 @@ from .const import (
     NAME,
 )
 from .coordinator import FellowStaggProDataUpdateCoordinator
+from .temperature import celsius_to_fahrenheit
 
 
 async def async_setup_entry(
-    hass,
+    hass: HomeAssistant,
     entry: FellowStaggProConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Fellow Stagg Pro sensors."""
-    coordinator = entry.runtime_data.coordinator
+    coordinator = get_runtime_data(hass, entry).coordinator
     unique_root = entry.unique_id or entry.entry_id
 
     async_add_entities(

@@ -11,12 +11,12 @@ from homeassistant.components.water_heater import (
 )
 from homeassistant.const import UnitOfTemperature
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.util.temperature import celsius_to_fahrenheit, fahrenheit_to_celsius
 
-from . import FellowStaggProConfigEntry
+from . import FellowStaggProConfigEntry, get_runtime_data
 from .const import (
     CONF_ENABLE_HEAT_CONTROL,
     CONF_ENABLE_SET_TEMPERATURE,
@@ -33,15 +33,17 @@ from .const import (
 )
 from .coordinator import FellowStaggProDataUpdateCoordinator
 from .guardrails import is_control_enabled, normalize_target_temperature_c
+from .temperature import celsius_to_fahrenheit, fahrenheit_to_celsius
 
 
 async def async_setup_entry(
-    hass,
+    hass: HomeAssistant,
     entry: FellowStaggProConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up water heater entity."""
-    async_add_entities([FellowStaggProWaterHeater(entry.runtime_data.coordinator, entry)])
+    runtime_data = get_runtime_data(hass, entry)
+    async_add_entities([FellowStaggProWaterHeater(runtime_data.coordinator, entry)])
 
 
 class FellowStaggProWaterHeater(

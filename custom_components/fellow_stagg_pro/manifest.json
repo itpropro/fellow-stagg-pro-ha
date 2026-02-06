@@ -5,10 +5,10 @@
     "@itpropro"
   ],
   "config_flow": true,
-  "documentation": "https://github.com/itpropro/stagg-pro-ha#readme",
+  "documentation": "https://github.com/itpropro/fellow-stagg-pro-ha#readme",
   "integration_type": "device",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/itpropro/stagg-pro-ha/issues",
+  "issue_tracker": "https://github.com/itpropro/fellow-stagg-pro-ha/issues",
   "requirements": [],
   "version": "0.1.0"
 }

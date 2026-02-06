@@ -12,6 +12,7 @@ This integration relies on an undocumented local API. It can stop working at any
 - `water_heater` entity for kettle control
 - Diagnostic `sensor` entities for mode, firmware, and runtime values
 - Safety guardrails with risky controls disabled by default
+- Compatible with Home Assistant `2026.1.3` (minimum declared for HACS: `2026.1.0`)
 
 ## Known Limitations
 
