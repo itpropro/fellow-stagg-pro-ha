@@ -41,6 +41,7 @@ class FellowStaggProPowerSwitch(
     _attr_has_entity_name = True
     _attr_name = "Power"
     _attr_icon = "mdi:kettle-steam"
+    _optimistic_max_updates = 4
 
     def __init__(
         self,
@@ -51,6 +52,8 @@ class FellowStaggProPowerSwitch(
         super().__init__(coordinator)
         self._entry = entry
         self._attr_unique_id = f"{entry.unique_id or entry.entry_id}-power-switch"
+        self._optimistic_is_on: bool | None = None
+        self._optimistic_updates_remaining = 0
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -66,6 +69,9 @@ class FellowStaggProPowerSwitch(
     @property
     def is_on(self) -> bool:
         """Return current on/off state."""
+        if self._optimistic_is_on is not None:
+            return self._optimistic_is_on
+
         return bool(derive_power_state(self._state()))
 
     async def async_turn_on(self, **kwargs) -> None:
@@ -74,7 +80,14 @@ class FellowStaggProPowerSwitch(
             raise HomeAssistantError(
                 "Heat control is disabled. Enable it in integration options."
             )
-        await self.coordinator.api.async_turn_on()
+
+        self._set_optimistic_state(True)
+        try:
+            await self.coordinator.api.async_turn_on()
+        except Exception:
+            self._clear_optimistic_state()
+            raise
+
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs) -> None:
@@ -83,8 +96,29 @@ class FellowStaggProPowerSwitch(
             raise HomeAssistantError(
                 "Heat control is disabled. Enable it in integration options."
             )
-        await self.coordinator.api.async_turn_off()
+
+        self._set_optimistic_state(False)
+        try:
+            await self.coordinator.api.async_turn_off()
+        except Exception:
+            self._clear_optimistic_state()
+            raise
+
         await self.coordinator.async_request_refresh()
+
+    def _handle_coordinator_update(self) -> None:
+        """Reconcile optimistic state with polled telemetry."""
+        derived_state = derive_power_state(self._state())
+
+        if self._optimistic_is_on is not None:
+            if derived_state is self._optimistic_is_on:
+                self._clear_optimistic_state()
+            else:
+                self._optimistic_updates_remaining -= 1
+                if self._optimistic_updates_remaining <= 0:
+                    self._clear_optimistic_state()
+
+        super()._handle_coordinator_update()
 
     def _state(self) -> dict:
         return self.coordinator.data.get(COORDINATOR_DATA_STATE, {})
@@ -96,3 +130,12 @@ class FellowStaggProPowerSwitch(
             options=self._entry.options,
             default=DEFAULT_ENABLE_HEAT_CONTROL,
         )
+
+    def _set_optimistic_state(self, value: bool) -> None:
+        self._optimistic_is_on = value
+        self._optimistic_updates_remaining = self._optimistic_max_updates
+        self.async_write_ha_state()
+
+    def _clear_optimistic_state(self) -> None:
+        self._optimistic_is_on = None
+        self._optimistic_updates_remaining = 0

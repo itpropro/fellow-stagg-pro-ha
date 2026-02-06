@@ -50,6 +50,11 @@ def parse_settings_payload(payload: str) -> dict[str, Any]:
 
     settempr_value = settings.get("settempr")
     if isinstance(settempr_value, str):
+        raw_match = re.match(r"\s*(-?[0-9]+)\s+([^\s(]+)", settempr_value)
+        if raw_match:
+            settings["settempr_raw"] = int(raw_match.group(1))
+            settings["settempr_scale"] = raw_match.group(2).lower()
+
         celsius_match = re.search(r"\((-?[0-9]+(?:\.[0-9]+)?)\s*C", settempr_value)
         if celsius_match:
             settings["settempr_c"] = float(celsius_match.group(1))

@@ -17,6 +17,7 @@ from .parser import (
     parse_settings_payload,
     parse_state_payload,
 )
+from .temperature import celsius_to_fahrenheit
 
 
 class FellowStaggProApiError(Exception):
@@ -98,8 +99,14 @@ class FellowStaggProApi:
             max_c=MAX_TARGET_TEMP_C,
             step_c=TARGET_TEMP_STEP_C,
         )
-        raw_half_celsius = int(round(normalized_temp * 2))
-        command = f"setsetting settempr {raw_half_celsius}"
+
+        try:
+            settings = await self.async_get_settings()
+        except FellowStaggProApiError:
+            settings = {}
+
+        raw_settempr = _encode_settempr_value(normalized_temp, settings)
+        command = f"setsetting settempr {raw_settempr}"
         await self.async_send_command(command)
 
         last_settings_target: float | int | None = None
@@ -135,35 +142,32 @@ class FellowStaggProApi:
         )
 
     async def _async_set_power(self, expected_on: bool) -> None:
-        """Set power state and verify via state readback when possible."""
+        """Set power state and best-effort verify via state readback."""
         command = "heaton" if expected_on else "heatoff"
         await self.async_send_command(command)
 
-        observed_state: bool | None = None
-        for attempt in range(4):
+        for attempt in range(10):
             try:
                 state = await self.async_get_state()
             except FellowStaggProApiError:
                 state = {}
 
             observed_state = derive_power_state(state)
-            if observed_state is None:
-                if attempt < 3:
-                    await asyncio.sleep(0.2)
-                    continue
-                return
-
             if observed_state == expected_on:
                 return
 
-            if attempt == 0:
+            if attempt == 1:
                 await self.async_send_command(command)
 
-            if attempt < 3:
-                await asyncio.sleep(0.2)
+            if attempt < 9:
+                await asyncio.sleep(0.5)
 
-        expected_label = "on" if expected_on else "off"
-        observed_label = "unknown" if observed_state is None else ("on" if observed_state else "off")
-        raise FellowStaggProApiError(
-            f"Power write mismatch: requested={expected_label} observed={observed_label}"
-        )
+
+def _encode_settempr_value(target_c: float, settings: dict[str, Any]) -> int:
+    """Encode target temperature for `setsetting settempr` based on device format."""
+    scale = str(settings.get("settempr_scale") or "").lower()
+
+    if scale == "f":
+        return int(round(celsius_to_fahrenheit(target_c)))
+
+    return int(round(target_c * 2))

@@ -87,7 +87,16 @@ class TestParser(unittest.TestCase):
         self.assertEqual(parsed["hold"], "15")
         self.assertEqual(parsed["units"], "1")
         self.assertEqual(parsed["units_int"], 1)
+        self.assertEqual(parsed["settempr_raw"], 196)
+        self.assertEqual(parsed["settempr_scale"], "2c")
         self.assertAlmostEqual(parsed["settempr_c"], 98.0)
+
+    def test_parse_settings_payload_with_fahrenheit_settempr(self) -> None:
+        payload = "settempr=176 F (80.000000 C 176.000000 F)\nunits=1"
+        parsed = parser.parse_settings_payload(payload)
+        self.assertEqual(parsed["settempr_raw"], 176)
+        self.assertEqual(parsed["settempr_scale"], "f")
+        self.assertAlmostEqual(parsed["settempr_c"], 80.0)
 
     def test_parse_fwinfo_payload(self) -> None:
         parsed = parser.parse_fwinfo_payload(FWINFO_PAYLOAD)
