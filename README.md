@@ -10,6 +10,7 @@ This integration relies on an undocumented local API. It can stop working at any
 
 - Local polling integration (`iot_class: local_polling`)
 - `water_heater` entity for kettle control
+- Dedicated `switch` entity for explicit on/off control
 - Diagnostic `sensor` entities for mode, firmware, and runtime values
 - Safety guardrails for on/off and target writes
 - Compatible with Home Assistant `2026.1.3` (minimum declared for HACS: `2026.1.0`)
@@ -61,6 +62,7 @@ During setup, provide:
 - On/off controls are enabled by default (`enable_heat_control`).
 - Target temperature writes are disabled by default (`enable_set_temperature`).
 - `enable_set_temperature` gates target temperature writes.
+- Clock sensor is intentionally omitted to avoid minute-level activity log noise.
 - Temperature writes are validated to `40.0-100.0 C` and normalized to `0.5 C`.
 - This controls a real heating appliance; validate all control behavior supervised.
 
@@ -71,6 +73,7 @@ During setup, provide:
 | Entity | Description |
 |--------|-------------|
 | Kettle | Main control entity for on/off and target temperature (when enabled) |
+| Power | Explicit on/off switch entity |
 
 ### Sensors
 
@@ -79,7 +82,6 @@ During setup, provide:
 | Current Temperature | Current measured kettle temperature |
 | Target Temperature | Current target temperature |
 | Mode | Parsed kettle mode string |
-| Clock | Kettle clock value |
 | Firmware Version | Parsed value from `fwinfo` |
 | BLE Connected | BLE connection flag from state |
 

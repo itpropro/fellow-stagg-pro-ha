@@ -48,14 +48,6 @@ async def async_setup_entry(
             FellowStaggProValueSensor(
                 coordinator,
                 unique_root,
-                key="clock",
-                name="Clock",
-                icon="mdi:clock-outline",
-                value_fn=lambda data: data.get(COORDINATOR_DATA_STATE, {}).get("clock"),
-            ),
-            FellowStaggProValueSensor(
-                coordinator,
-                unique_root,
                 key="firmware_version",
                 name="Firmware Version",
                 icon="mdi:chip",
