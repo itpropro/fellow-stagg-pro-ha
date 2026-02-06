@@ -67,3 +67,10 @@ def derive_operation_mode(state: dict[str, Any]) -> str | None:
         return OPERATION_HEATING
 
     return None
+
+
+def should_send_power_toggle(observed_on: bool | None, expected_on: bool) -> bool:
+    """Return True when a button-2 power toggle should be sent."""
+    if observed_on is None:
+        return True
+    return observed_on != expected_on

@@ -85,6 +85,11 @@ class TestControl(unittest.TestCase):
     def test_derive_operation_mode_returns_none_when_unknown(self) -> None:
         self.assertIsNone(control.derive_operation_mode({}))
 
+    def test_should_send_power_toggle(self) -> None:
+        self.assertTrue(control.should_send_power_toggle(None, expected_on=True))
+        self.assertFalse(control.should_send_power_toggle(True, expected_on=True))
+        self.assertTrue(control.should_send_power_toggle(False, expected_on=True))
+
 
 if __name__ == "__main__":
     unittest.main()

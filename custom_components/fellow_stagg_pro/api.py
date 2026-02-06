@@ -9,7 +9,7 @@ import aiohttp
 
 from .guardrails import normalize_target_temperature_c
 from .const import MAX_TARGET_TEMP_C, MIN_TARGET_TEMP_C, TARGET_TEMP_STEP_C
-from .control import derive_power_state, is_target_match
+from .control import derive_power_state, is_target_match, should_send_power_toggle
 from .parser import (
     extract_ret_code,
     normalize_cli_payload,
@@ -142,11 +142,8 @@ class FellowStaggProApi:
         )
 
     async def _async_set_power(self, expected_on: bool) -> None:
-        """Set power state and best-effort verify via state readback."""
-        command = "heaton" if expected_on else "heatoff"
-        await self.async_send_command(command)
-
-        for attempt in range(10):
+        """Set power state using button-2 state machine toggle."""
+        for attempt in range(12):
             try:
                 state = await self.async_get_state()
             except FellowStaggProApiError:
@@ -156,10 +153,14 @@ class FellowStaggProApi:
             if observed_state == expected_on:
                 return
 
-            if attempt == 1:
-                await self.async_send_command(command)
+            if should_send_power_toggle(observed_state, expected_on) and attempt in {
+                0,
+                4,
+                8,
+            }:
+                await self.async_send_command("2")
 
-            if attempt < 9:
+            if attempt < 11:
                 await asyncio.sleep(0.5)
 
 

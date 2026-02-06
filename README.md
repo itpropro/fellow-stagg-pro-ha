@@ -62,6 +62,8 @@ During setup, provide:
 - On/off controls are enabled by default (`enable_heat_control`).
 - Target temperature writes are disabled by default (`enable_set_temperature`).
 - `enable_set_temperature` gates target temperature writes.
+- On/off control uses button-2 state-machine toggling (`cmd=2`) to keep the UI/display behavior aligned.
+- Low-level heater commands (`heaton`/`heatoff`) are intentionally avoided by the integration because they can desync UI/display state and are riskier.
 - Clock sensor is intentionally omitted to avoid minute-level activity log noise.
 - Temperature writes are validated to `40.0-100.0 C` and normalized to `0.5 C`.
 - This controls a real heating appliance; validate all control behavior supervised.
