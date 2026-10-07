@@ -99,6 +99,23 @@ class FellowStaggProWaterHeater(
         )
 
     @property
+    def min_temp(self) -> float:
+        """Return the minimum target in the entity's own unit."""
+        return self._from_celsius(self._attr_min_temp)
+
+    @property
+    def max_temp(self) -> float:
+        """Return the maximum target in the entity's own unit."""
+        return self._from_celsius(self._attr_max_temp)
+
+    @property
+    def target_temperature_step(self) -> float:
+        """Return the target step in the entity's own unit."""
+        if self.temperature_unit == UnitOfTemperature.FAHRENHEIT:
+            return 1.0
+        return self._attr_target_temperature_step
+
+    @property
     def current_temperature(self) -> float | None:
         """Return current water temperature."""
         temp_c = self._state().get("current_temp_c")
